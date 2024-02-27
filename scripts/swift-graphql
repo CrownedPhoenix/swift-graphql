@@ -1,0 +1,1 @@
+swift package --disable-sandbox --package-path $(dirname "$0")/../CLI swift-graphql-cli $@

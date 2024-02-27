@@ -21,6 +21,7 @@ package.tgz
 dist
 responses/*
 !responses/.gitkeep
+.npm
 
 # Yarn
 
@@ -34,3 +35,4 @@ tsconfig.tsbuildinfo
 # Website
 
 .next
+server/package-lock.json

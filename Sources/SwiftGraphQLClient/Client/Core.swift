@@ -158,7 +158,7 @@ public class Client: GraphQLClient, ObservableObject {
             .filter { $0.operation.kind == operation.kind && $0.operation.id == operation.id }
             .eraseToAnyPublisher()
         
-        // We aren't interested in composing a full-blown
+        // We aren' t interested in composing a full-blown
         // pipeline for mutations because we only get a single result
         // (i.e. the result of the mutation).
         if operation.kind == .mutation {
@@ -182,12 +182,12 @@ public class Client: GraphQLClient, ObservableObject {
             .eraseToAnyPublisher()
         
         let result: AnyPublisher<OperationResult, Never> = source
-            .handleEvents(receiveCompletion: { _ in
+            .handleEvents(receiveCompletion: { result in
                 // Once the publisher stops the stream (i.e. the stream ended because we
                 // received all relevant results), we dismantle the pipeline by sending
                 // the teardown event to all exchanges in the chain.
                 self.config.logger.debug("Operation \(operation.id) source has completed.")
-                
+
                 self.active.removeValue(forKey: operation.id)
                 self.operations.send(operation.with(kind: .teardown))
             })
