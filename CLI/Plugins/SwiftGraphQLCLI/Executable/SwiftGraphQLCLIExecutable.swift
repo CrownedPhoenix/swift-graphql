@@ -7,10 +7,9 @@ import SwiftGraphQLCodegen
 import System
 import Yams
 
-SwiftGraphQLCLI.main()
-
 // MARK: - CLI
 
+@main
 struct SwiftGraphQLCLI: ParsableCommand {
     // MARK: - Parameters
 
@@ -22,15 +21,15 @@ struct SwiftGraphQLCLI: ParsableCommand {
 
     @Option(name: .shortAndLong, help: "Relative path from CWD to the output file.")
     var output: String?
-    
+
     @Option(
         name: .shortAndLong,
         help: "Custom headers to include in the request in format \"Header: Value\""
     )
     var header: [String] = []
-    
+
     // MARK: - Configuration
-    
+
     static var configuration = CommandConfiguration(
         commandName: "swift-graphql"
     )
@@ -39,23 +38,23 @@ struct SwiftGraphQLCLI: ParsableCommand {
 
     func run() throws {
         print("Generating SwiftGraphQL Selection 🚀")
-        
+
         // Make sure we get a valid endpoint file or URL endpoint.
         guard var url = URL(string: endpoint) else {
             SwiftGraphQLCLI.exit(withError: .endpoint)
         }
-        
-        // Covnert relative URLs to absolute ones.
+
+        // Convert relative URLs to absolute ones.
         if url.scheme == nil {
             guard #available(macOS 12, *) else {
                 SwiftGraphQLCLI.exit(withError: .legacy)
             }
-            
+
             var cwd = FilePath(FileManager.default.currentDirectoryPath)
             if endpoint.starts(with: "/") {
                 cwd = FilePath("/")
             }
-            
+
             guard let fileurl = URL(cwd.appending(endpoint)) else {
                 SwiftGraphQLCLI.exit(withError: .endpoint)
             }
@@ -71,58 +70,58 @@ struct SwiftGraphQLCLI: ParsableCommand {
         } else {
             config = Config()
         }
-        
-        if !self.header.isEmpty {
+
+        if !header.isEmpty {
             print("Adding headers to your request:")
         }
-        
+
         // Add headers to the request.
         var headers: [String: String] = [:]
-        for header in self.header {
+        for header in header {
             // Each header is split into two parts on the `: `
             // separator as in cURL spec.
             let parts = header.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: true)
             guard parts.count == 2 else {
                 SwiftGraphQLCLI.exit(withError: .header)
             }
-            
+
             let name = String(parts[0])
             let value = parts[1].trimmingCharacters(in: CharacterSet.whitespaces)
             headers[name] = value
-            
+
             print(" - \(name): \(value)")
         }
-        
+
         // Fetch the schema.
         let loadSchemaSpinner = Spinner(.dots, "Fetching GraphQL Schema")
         loadSchemaSpinner.start()
         let schema: Schema
         do {
             schema = try Schema(from: url, withHeaders: headers)
-        } catch(let err) {
+        } catch let err {
             print(err.localizedDescription)
             SwiftGraphQLCLI.exit(withError: .unreachable)
         }
-        
+
         loadSchemaSpinner.success("Schema loaded!")
 
         // Generate the code.
         let generateCodeSpinner = Spinner(.dots, "Generating API")
         generateCodeSpinner.start()
-        
+
         let scalars = ScalarMap(scalars: config.scalars)
         let generator = GraphQLCodegen(scalars: scalars)
         let code: String
-        
+
         do {
             code = try generator.generate(schema: schema)
             generateCodeSpinner.success("API generated successfully!")
-        } catch CodegenError.formatting(let err) {
+        } catch let CodegenError.formatting(err) {
             generateCodeSpinner.error(err.localizedDescription)
             SwiftGraphQLCLI.exit(withError: .formatting)
         } catch IntrospectionError.emptyfile, IntrospectionError.unknown {
             SwiftGraphQLCLI.exit(withError: .introspection)
-        } catch IntrospectionError.error(let err) {
+        } catch let IntrospectionError.error(err) {
             generateCodeSpinner.error(err.localizedDescription)
             SwiftGraphQLCLI.exit(withError: .introspection)
         } catch {
@@ -135,24 +134,24 @@ struct SwiftGraphQLCLI: ParsableCommand {
         } else {
             FileHandle.standardOutput.write(code.data(using: .utf8)!)
         }
-        
+
         let analyzeSchemaSpinner = Spinner(.dots, "Analyzing Schema")
         analyzeSchemaSpinner.start()
-        
+
         // Warn about the unused scalars.
         let ignoredScalars = try schema.missing(from: scalars)
         guard !ignoredScalars.isEmpty else {
             analyzeSchemaSpinner.success("SwiftGraphQL Ready!")
             return
         }
-        
+
         analyzeSchemaSpinner.stop()
-        
+
         let message = """
         Your schema contains some unknown scalars:
-        
+
         \(ignoredScalars.map { " - \($0)" }.joined(separator: "\n"))
-        
+
         Add them to the config to get better type support!
         """
         print(message)
@@ -160,7 +159,6 @@ struct SwiftGraphQLCLI: ParsableCommand {
 }
 
 // MARK: - Configuraiton
-
 
 /**
  Configuration file specification for `swiftgraphql.yml`.
@@ -178,7 +176,7 @@ struct Config: Codable, Equatable {
 
     /// Creates an empty configuration instance.
     init() {
-        self.scalars = [:]
+        scalars = [:]
     }
 
     /// Tries to decode the configuration from a string.
