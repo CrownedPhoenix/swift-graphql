@@ -1,4 +1,4 @@
-import RxSwift
+import Combine
 import Foundation
 import GraphQL
 
@@ -26,9 +26,9 @@ public struct DebugExchange: Exchange {
     
     public func register(
         client: GraphQLClient,
-        operations: Observable<Operation>,
+        operations: AnyPublisher<Operation, Never>,
         next: ExchangeIO
-    ) -> Observable<OperationResult> {
+    ) -> AnyPublisher<OperationResult, Never> {
         guard debug else {
             return next(operations)
         }
@@ -37,11 +37,13 @@ public struct DebugExchange: Exchange {
             .handleEvents(receiveOutput: { operation in
                 client.logger.debug("[debug exchange]: Incoming Operation: \(operation)")
             })
-
+            .eraseToAnyPublisher()
+        
         let upstream = next(downstream)
             .handleEvents(receiveOutput: { result in
                 client.logger.debug("[debug exchange]: Completed Operation: \(result)")
             })
+            .eraseToAnyPublisher()
         
         return upstream
     }

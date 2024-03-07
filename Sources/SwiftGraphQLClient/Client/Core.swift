@@ -1,6 +1,5 @@
-import RxSwift
+import Combine
 import Foundation
-import RxSwiftCombine
 import GraphQL
 import Logging
 
@@ -19,22 +18,22 @@ public class Client: GraphQLClient, ObservableObject {
     // MARK: - Exchange Pipeline
     
     /// The operations stream that lets the client send and listen for them.
-    private var operations = PublishSubject<Operation>()
-
+    private var operations = PassthroughSubject<Operation, Never>()
+    
     /// Stream of results that may be used as the base for sources.
-    private var results: Observable<OperationResult>
+    private var results: AnyPublisher<OperationResult, Never>
     
     // MARK: - Sources
     
     /// Stream of results related to a given operation.
-    public typealias Source = Observable<OperationResult>
+    public typealias Source = AnyPublisher<OperationResult, Never>
     
     /// Map of currently active sources identified by their operation identifier.
     ///
     /// - NOTE: Removing the source from the active list should start its deallocation.
     private var active: [String: Source]
     
-    private var cancellables = Set<DisposeBag>()
+    private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Initializer
     
@@ -48,13 +47,15 @@ public class Client: GraphQLClient, ObservableObject {
         config: ClientConfiguration = ClientConfiguration()
     ) {
         // A publisher that never emits anything.
-        let noop = Observable<OperationResult>.empty()
+        let noop = Empty<OperationResult, Never>().eraseToAnyPublisher()
+        
         self.request = request
         self.config = config
         self.results = noop
         self.active = [:]
         
-        let operations = operations.share()        
+        let operations = operations.share().eraseToAnyPublisher()
+        
         // We think of all exchanges as a single flattened exchange - once
         //  we have sent a request through the pipeline there's nothing left to do
         //  and we pass it in the stream of all operations from the client.
@@ -62,6 +63,7 @@ public class Client: GraphQLClient, ObservableObject {
         self.results = exchange
             .register(client: self, operations: operations, next: { _ in noop })
             .share()
+            .eraseToAnyPublisher()
         
         // We start the chain to make sure the data is always flowing through the pipeline.
         //  This is important to make sure all exchanges are fully initialised
@@ -69,7 +71,7 @@ public class Client: GraphQLClient, ObservableObject {
         self.results
             .sink { _ in }
             .store(in: &self.cancellables)
-
+        
         self.config.logger.info("GraphQL Client ready!")
     }
     
@@ -145,6 +147,7 @@ public class Client: GraphQLClient, ObservableObject {
             .handleEvents(receiveSubscription: { _ in
                 self.operations.send(operation)
             })
+            .eraseToAnyPublisher()
     }
     
     /// Returns a new result source that
@@ -153,6 +156,7 @@ public class Client: GraphQLClient, ObservableObject {
         
         let source = self.results
             .filter { $0.operation.kind == operation.kind && $0.operation.id == operation.id }
+            .eraseToAnyPublisher()
         
         // We aren' t interested in composing a full-blown
         // pipeline for mutations because we only get a single result
@@ -162,7 +166,8 @@ public class Client: GraphQLClient, ObservableObject {
                 .handleEvents(receiveSubscription: { _ in
                     self.operations.send(operation)
                 })
-                .take(1).asSingle().asObservable()
+                .first()
+                .eraseToAnyPublisher()
         }
         
         // We create a new source that listenes for events until
@@ -174,8 +179,9 @@ public class Client: GraphQLClient, ObservableObject {
         //  and needs to be manually dismantled.
         let torndown = self.operations
             .filter { $0.kind == .teardown && $0.id == operation.id }
+            .eraseToAnyPublisher()
         
-        let result: Observable<OperationResult> = source
+        let result: AnyPublisher<OperationResult, Never> = source
             .handleEvents(receiveCompletion: { result in
                 // Once the publisher stops the stream (i.e. the stream ended because we
                 // received all relevant results), we dismantle the pipeline by sending
@@ -185,28 +191,29 @@ public class Client: GraphQLClient, ObservableObject {
                 self.active.removeValue(forKey: operation.id)
                 self.operations.send(operation.with(kind: .teardown))
             })
-            .map { result -> Observable<OperationResult> in
+            .map { result -> AnyPublisher<OperationResult, Never> in
                 self.config.logger.debug("Processing result of operation \(operation.id)")
                 
                 // Mark a result as stale when a new operation is sent with the same key.
                 guard operation.kind == .query else {
-                    return Observable.just(result)
+                    return Just(result).eraseToAnyPublisher()
                 }
                 
                 // Mark the current result as `stale` when the client
                 // requests a query with the same key again.
-                let staleResult: Observable<OperationResult> = self.operations
+                let staleResult: AnyPublisher<OperationResult, Never> = self.operations
                     .filter { $0.kind == .query && $0.id == operation.id && $0.policy != .cacheOnly }
-                    .take(1).asSingle().asObservable()
+                    .first()
                     .map { operation -> OperationResult in
                         var copy = result
                         copy.stale = true
                         return copy
                     }
+                    .eraseToAnyPublisher()
                 
-                return Observable.just(result).merge(with: staleResult)
+                return Just(result).merge(with: staleResult).eraseToAnyPublisher()
             }
-            .switchLatest()
+            .switchToLatest()
             // NOTE: We use `takeUntil` teardown operator here to emit finished event
             // if the source has finished sending events and requested a teardown.
             // This is necessary to correctly propagate down the completion since the
@@ -224,7 +231,8 @@ public class Client: GraphQLClient, ObservableObject {
             // reused multiple times for operation with the same identifier
             // but a different subscriber.
             .share()
-
+            .eraseToAnyPublisher()
+    
         return result
     }
     
@@ -263,8 +271,8 @@ public class Client: GraphQLClient, ObservableObject {
     public func query(
         _ args: ExecutionArgs,
         request: URLRequest? = nil
-    ) async throws -> OperationResult {
-        try await self.query(args, request: request, policy: .networkOnly).asSingle().value
+    ) async -> OperationResult {
+        await self.query(args, request: request, policy: .networkOnly).first()
     }
 
     /// Executes a mutation request with given execution parameters.
@@ -294,8 +302,8 @@ public class Client: GraphQLClient, ObservableObject {
     public func mutate(
         _ args: ExecutionArgs,
         request: URLRequest? = nil
-    ) async throws -> OperationResult {
-        try await self.mutate(args, request: request, policy: .networkOnly).take(1).asSingle().value
+    ) async -> OperationResult {
+        await self.mutate(args, request: request, policy: .networkOnly).first()
     }
 
     /// Executes a subscription request with given execution parameters.

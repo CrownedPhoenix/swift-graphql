@@ -2,7 +2,7 @@ import Foundation
 import GraphQL
 
 #if canImport(GraphQLWebSocket)
-    import RxSwift
+    import Combine
     import GraphQLWebSocket
 
     public extension GraphQLWebSocket {
@@ -27,11 +27,11 @@ import GraphQL
             as operationName: String? = nil,
             extensions: [String: AnyCodable]? = nil,
             decoder _: JSONDecoder = JSONDecoder()
-        ) -> Observable<DecodedExecutionResult<T>> where TypeLock: GraphQLWebSocketOperation {
+        ) -> AnyPublisher<DecodedExecutionResult<T>, Error> where TypeLock: GraphQLWebSocketOperation {
             let args = selection.encode(operationName: operationName, extensions: extensions)
 
             let publisher = subscribe(args)
-                .map { result -> DecodedExecutionResult<T> in
+                .tryMap { result -> DecodedExecutionResult<T> in
                     let data = try selection.decode(raw: result.data)
                     let result = DecodedExecutionResult<T>(
                         data: data,
@@ -42,6 +42,7 @@ import GraphQL
 
                     return result
                 }
+                .eraseToAnyPublisher()
 
             return publisher
         }

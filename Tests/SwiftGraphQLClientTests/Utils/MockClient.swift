@@ -1,4 +1,4 @@
-import RxSwift
+import Combine
 import Foundation
 import Logging
 import SwiftGraphQLClient
@@ -7,14 +7,14 @@ import SwiftGraphQLClient
 class MockClient: GraphQLClient {
     var request: URLRequest
     
-    private var customExecute: ((SwiftGraphQLClient.Operation) -> Observable<OperationResult>)?
+    private var customExecute: ((SwiftGraphQLClient.Operation) -> AnyPublisher<OperationResult, Never>)?
     
     private var customReexecute: ((SwiftGraphQLClient.Operation) -> Void)?
     
     // MARK: - Initializer
     
     init(
-        customExecute: ((SwiftGraphQLClient.Operation) -> Observable<OperationResult>)? = nil,
+        customExecute: ((SwiftGraphQLClient.Operation) -> AnyPublisher<OperationResult, Never>)? = nil,
         customReexecute: ((SwiftGraphQLClient.Operation) -> Void)? = nil
     ) {
         self.request = URLRequest(url: URL(string: "https://demo.com")!)
@@ -26,9 +26,9 @@ class MockClient: GraphQLClient {
     
     var logger: Logger = Logger(label: "com.client.tests")
     
-    func execute(operation: SwiftGraphQLClient.Operation) -> Observable<OperationResult> {
+    func execute(operation: SwiftGraphQLClient.Operation) -> AnyPublisher<OperationResult, Never> {
         guard let customExecute = customExecute else {
-            return Observable<OperationResult>.empty()
+            return Empty<OperationResult, Never>().eraseToAnyPublisher()
         }
 
         return customExecute(operation)

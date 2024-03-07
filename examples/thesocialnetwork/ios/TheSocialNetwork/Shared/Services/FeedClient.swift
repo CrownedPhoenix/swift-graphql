@@ -1,11 +1,11 @@
-import RxSwift
+import Combine
 import Foundation
 
 enum FeedClient {
     
     /// Publisher that emits the number of unread posts.
-    public static var unread: Observable<Int> {
-        self.client.$posts.
+    public static var unread: AnyPublisher<Int, Never> {
+        self.client.$posts.eraseToAnyPublisher()
     }
     
     private static var client = Client()

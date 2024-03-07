@@ -1,7 +1,7 @@
 import GraphQL
 import SwiftGraphQLClient
 import XCTest
-import RxSwift
+import Combine
 import SwiftGraphQL
 
 final class AsyncInterfaceTests: XCTestCase {
@@ -30,7 +30,7 @@ final class AsyncInterfaceTests: XCTestCase {
                 ],
                 error: nil
             )
-            return Observable.just(result)
+            return Just(result).eraseToAnyPublisher()
         })
 
 
@@ -49,7 +49,7 @@ final class AsyncInterfaceTests: XCTestCase {
                 data: ["unknown_field": "123"],
                 error: nil
             )
-            return Observable.just(result)
+            return Just(result).eraseToAnyPublisher()
         })
 
         await XCTAssertThrowsError(of: ObjectDecodingError.self) {
@@ -90,7 +90,7 @@ final class AsyncInterfaceTests: XCTestCase {
                 ],
                 error: nil
             )
-            return Observable.just(result)
+            return Just(result).eraseToAnyPublisher()
         })
 
         let result = try await client.mutate(Objects.Mutation.auth(selection: selection))
@@ -115,7 +115,7 @@ final class AsyncInterfaceTests: XCTestCase {
                 data: ["unknown_field": "123"],
                 error: nil
             )
-            return Observable.just(result)
+            return Just(result).eraseToAnyPublisher()
         })
 
         await XCTAssertThrowsError(of: ObjectDecodingError.self) {

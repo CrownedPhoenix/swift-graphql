@@ -1,23 +1,24 @@
-import RxSwift
+import Combine
 import GraphQL
 @testable import SwiftGraphQLClient
 import XCTest
 
 final class FallbackExchangeTests: XCTestCase {
     
-    private var cancellables = Set<DisposeBag>()
-
+    private var cancellables = Set<AnyCancellable>()
+    
     func testFiltersResults() throws {
         let expectation = expectation(description: "deallocated")
         
-        let subject = PublishSubject<SwiftGraphQLClient.Operation>()
-        let operations = subject.share()
+        let subject = PassthroughSubject<SwiftGraphQLClient.Operation, Never>()
+        let operations = subject.share().eraseToAnyPublisher()
+        
         let client = MockClient()
         
         let exchange = FallbackExchange(debug: true)
         exchange
             .register(client: client, operations: operations) { _ in
-                Observable<OperationResult>.empty()
+                Empty<OperationResult, Never>().eraseToAnyPublisher()
             }
             .sink(receiveCompletion: { _ in
                 expectation.fulfill()

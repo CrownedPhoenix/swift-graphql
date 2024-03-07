@@ -1,10 +1,10 @@
-import RxSwift
+import Combine
 @testable import SwiftGraphQLClient
 import XCTest
 
 final class PublishersExtensionsTests: XCTestCase {
     
-    var cancellables = Set<DisposeBag>()
+    var cancellables = Set<AnyCancellable>()
 
     // MARK: - TakeUntil tests
     
@@ -12,11 +12,11 @@ final class PublishersExtensionsTests: XCTestCase {
         let expectation = expectation(description: "terminated")
         var received = [Int]()
         
-        let terminator = PublishSubject<()>()
-        let publisher = PublishSubject<Int>()
-
+        let terminator = PassthroughSubject<(), Never>()
+        let publisher = PassthroughSubject<Int, Never>()
+        
         publisher
-            .takeUntil(terminator)
+            .takeUntil(terminator.eraseToAnyPublisher())
             .sink(receiveCompletion: { completion in
                 expectation.fulfill()
             }, receiveValue: { value in
@@ -40,14 +40,14 @@ final class PublishersExtensionsTests: XCTestCase {
         let expectation = expectation(description: "terminated")
         var received = [Int]()
         
-        let terminator = PublishSubject<()>()
-        let publisher = PublishSubject<Int>()
-
+        let terminator = PassthroughSubject<(), Never>()
+        let publisher = PassthroughSubject<Int, Never>()
+        
         publisher
             .handleEvents(receiveCancel: {
                 expectation.fulfill()
             })
-            .takeUntil(terminator)
+            .takeUntil(terminator.eraseToAnyPublisher())
             .sink(receiveValue: { value in
                 received.append(value)
             })
@@ -68,11 +68,11 @@ final class PublishersExtensionsTests: XCTestCase {
         let expectation = expectation(description: "finished")
         var received: [Int] = []
         
-        let terminator = PublishSubject<()>()
-        let publisher = PublishSubject<Int>()
-
+        let terminator = PassthroughSubject<(), Never>()
+        let publisher = PassthroughSubject<Int, Never>()
+        
         publisher
-            .takeUntil(terminator)
+            .takeUntil(terminator.eraseToAnyPublisher())
             .sink(receiveCompletion: { completion in
                 expectation.fulfill()
             }, receiveValue: { value in
@@ -94,14 +94,14 @@ final class PublishersExtensionsTests: XCTestCase {
         let expectation = expectation(description: "cancelled")
         var received: [Int] = []
         
-        let terminator = PublishSubject<()>()
-        let publisher = PublishSubject<Int>()
-
-        var cancellable: Disposable? = publisher
+        let terminator = PassthroughSubject<(), Never>()
+        let publisher = PassthroughSubject<Int, Never>()
+        
+        var cancellable: AnyCancellable? = publisher
             .handleEvents(receiveCancel: {
                 expectation.fulfill()
             })
-            .takeUntil(terminator)
+            .takeUntil(terminator.eraseToAnyPublisher())
             .sink(receiveCompletion: { completion in
                 XCTFail()
             }, receiveValue: { value in
@@ -118,14 +118,14 @@ final class PublishersExtensionsTests: XCTestCase {
     }
 
     func testTakeTheFirstEmittedValueAsynchronously() async throws {
-        let value = try await Observable.just(1).first()
+        let value = await Just(1).first()
         XCTAssertEqual(value, 1)
     }
 
     func testTakeTheFirstEmittedValueAsynchronouslyFromThrowingPublisher() async throws {
         struct TestError: Error {}
 
-        let value = try await Observable.just(1).first()
+        let value = try await Just(1).setFailureType(to: TestError.self).first()
         XCTAssertEqual(value, 1)
     }
 
@@ -133,7 +133,7 @@ final class PublishersExtensionsTests: XCTestCase {
         struct TestError: Error {}
 
         await XCTAssertThrowsError(of: TestError.self) {
-            try await Observable<()>.error(TestError()).first()
+            try await Fail<Int, TestError>(error: TestError()).first()
         }
     }
 }

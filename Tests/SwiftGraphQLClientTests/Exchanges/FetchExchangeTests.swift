@@ -1,4 +1,4 @@
-import RxSwift
+import Combine
 import GraphQL
 @testable import SwiftGraphQLClient
 import XCTest
@@ -17,7 +17,7 @@ final class FetchExchangeTests: XCTestCase {
         func dataTaskPublisher(
             for request: URLRequest,
             with _: Data
-        ) -> Observable<(data: Data, response: URLResponse)> {
+        ) -> AnyPublisher<(data: Data, response: URLResponse), URLError> {
             switch self.handler(request) {
             case .succcess(let body):
                 let data = Data(body.utf8)
@@ -28,11 +28,14 @@ final class FetchExchangeTests: XCTestCase {
                     textEncodingName: nil
                 )
                 
-                return Observable.just((data: data, response: response))
+                return Just((data: data, response: response))
+                    .setFailureType(to: URLError.self)
+                    .eraseToAnyPublisher()
                 
             case .error(let code):
                 let error = URLError(rawValue: code)
-                return Observable.error(error)
+                return Fail<(data: Data, response: URLResponse), URLError>(error: error)
+                    .eraseToAnyPublisher()
             }
         }
         
@@ -58,26 +61,27 @@ final class FetchExchangeTests: XCTestCase {
         args: ExecutionArgs(query: "", variables: [:])
     )
     
-    private var cancelables = Set<DisposeBag>()
-
+    private var cancelables = Set<AnyCancellable>()
+    
     // MARK: - On Success
     
     func testReturnsResponseData() throws {
         let expectation = expectation(description: "Received Result")
         
-        let operations = PublishSubject<SwiftGraphQLClient.Operation>()
-
+        let operations = PassthroughSubject<SwiftGraphQLClient.Operation, Never>()
+        
         let client = MockClient()
         let session = MockURLSession { _ in .succcess("{ \"data\": \"hello\" }") }
         
         let exchange = FetchExchange(session: session)
         exchange.register(
             client: client,
-            operations: operations
+            operations: operations.eraseToAnyPublisher()
         ) { ops in
             let downstream = ops
                 .handleEvents(receiveOutput: { _ in XCTFail() })
                 .compactMap { _ in OperationResult?.none }
+                .eraseToAnyPublisher()
             
             return downstream
         }
@@ -102,8 +106,8 @@ final class FetchExchangeTests: XCTestCase {
     func testReturnsError() throws {
         let expectation = expectation(description: "Received Result")
         
-        let operations = PublishSubject<SwiftGraphQLClient.Operation>()
-
+        let operations = PassthroughSubject<SwiftGraphQLClient.Operation, Never>()
+        
         let client = MockClient()
         let session = MockURLSession { request in
             .error(400)
@@ -112,12 +116,13 @@ final class FetchExchangeTests: XCTestCase {
         let exchange = FetchExchange(session: session)
         exchange.register(
             client: client,
-            operations: operations
+            operations: operations.eraseToAnyPublisher()
         ) { ops in
             let downstream = ops
                 .handleEvents(receiveOutput: { _ in XCTFail() })
                 .compactMap { _ in OperationResult?.none }
-
+                .eraseToAnyPublisher()
+            
             return downstream
         }
         .sink { result in
@@ -144,8 +149,8 @@ final class FetchExchangeTests: XCTestCase {
     func testTeardownDoesNotPerformFetch() throws {
         let expectation = expectation(description: "Received Result")
         
-        let operations = PublishSubject<SwiftGraphQLClient.Operation>()
-
+        let operations = PassthroughSubject<SwiftGraphQLClient.Operation, Never>()
+        
         let client = MockClient()
         let session = MockURLSession { _ in
             XCTFail()
@@ -156,13 +161,14 @@ final class FetchExchangeTests: XCTestCase {
         let exchange = FetchExchange(session: session)
         exchange.register(
             client: client,
-            operations: operations
+            operations: operations.eraseToAnyPublisher()
         ) { ops in
             let downstream = ops
                 .handleEvents(receiveOutput: { _ in
                     expectation.fulfill()
                 })
                 .compactMap { _ in OperationResult?.none }
+                .eraseToAnyPublisher()
             
             return downstream
         }

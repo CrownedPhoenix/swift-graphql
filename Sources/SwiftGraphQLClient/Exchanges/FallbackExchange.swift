@@ -1,4 +1,4 @@
-import RxSwift
+import Combine
 import Foundation
 import GraphQL
 
@@ -16,9 +16,9 @@ public struct FallbackExchange: Exchange {
     
     public func register(
         client: GraphQLClient,
-        operations: Observable<Operation>,
+        operations: AnyPublisher<Operation, Never>,
         next: ExchangeIO
-    ) -> Observable<OperationResult> {
+    ) -> AnyPublisher<OperationResult, Never> {
         operations
             .compactMap { operation -> OperationResult? in
                 if operation.kind != .teardown && debug {
@@ -33,5 +33,6 @@ public struct FallbackExchange: Exchange {
                 // Filter out all unprocessed operations from the stream.
                 return OperationResult?.none
             }
+            .eraseToAnyPublisher()
     }
 }

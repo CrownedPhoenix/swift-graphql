@@ -26,14 +26,14 @@ Once the exchange processes an operation, it sends it back up the ladder as oper
 Each exchange has to follow the `Exchange` protocol spec.
 
 ```swift
-typealias ExchangeIO = (Observable<Operation>) -> Observable<OperationResult>
+typealias ExchangeIO = (AnyPublisher<Operation, Never>) -> AnyPublisher<OperationResult, Never>
 
 protocol Exchange {
     func register(
         client: GraphQLClient,
-        operations: Observable<Operation>,
+        operations: AnyPublisher<Operation, Never>,
         next: @escaping ExchangeIO
-    ) -> Observable<OperationResult>
+    ) -> AnyPublisher<OperationResult, Never>
 }
 ```
 
@@ -47,9 +47,9 @@ The simplest exchange is an exchange that does nothing. It forwards the operatio
 struct DoNothingExchange: Exchange {
     func register(
         client: GraphQLClient,
-        operations: Observable<Operation>,
+        operations: AnyPublisher<Operation, Never>,
         next: @escaping ExchangeIO
-    ) -> Observable<OperationResult> {
+    ) -> AnyPublisher<OperationResult, Never> {
         next(operations)
     }
 }
@@ -63,16 +63,16 @@ A slightly more complex example of an exchange is a logging exchange that logs a
 struct LoggingExchange: Exchange {
     func register(
         client: GraphQLClient,
-        operations: Observable<Operation>,
+        operations: AnyPublisher<Operation, Never>,
         next: @escaping ExchangeIO
-    ) -> Observable<OperationResult> {
+    ) -> AnyPublisher<OperationResult, Never> {
         let downstream = operations
             .print()
-            .
+            .eraseToAnyPublisher()
 
         let upstream = next(downstream)
             .print()
-            .
+            .eraseToAnyPublisher()
 
         return upstream
     }

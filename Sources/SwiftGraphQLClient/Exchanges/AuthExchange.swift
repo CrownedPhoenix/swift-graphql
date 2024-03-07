@@ -1,6 +1,6 @@
 import Foundation
 
-import RxSwift
+import Combine
 import Foundation
 import GraphQL
 
@@ -24,9 +24,9 @@ public class AuthExchange: Exchange {
     
     public func register(
         client: GraphQLClient,
-        operations: Observable<Operation>,
+        operations: AnyPublisher<Operation, Never>,
         next: ExchangeIO
-    ) -> Observable<OperationResult> {
+    ) -> AnyPublisher<OperationResult, Never> {
         let downstream = operations
             .map { operation -> Operation in
                 guard let token = self.getToken() else {
@@ -37,6 +37,7 @@ public class AuthExchange: Exchange {
                 copy.request.setValue(token, forHTTPHeaderField: self.header)
                 return copy
             }
+            .eraseToAnyPublisher()
         
         return next(downstream)
     }
