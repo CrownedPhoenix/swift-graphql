@@ -88,3 +88,18 @@ let package = Package(
         )
     ]
 )
+
+
+#if os(Linux)
+package.targets.append(
+    .target(name: "Combine", dependencies: [
+        .product(name: "RxSwift", package: "RxSwift"),
+    ])
+)
+package.dependencies.append(
+    .package(url: "https://github.com/ReactiveX/RxSwift.git", from: "6.0.0")
+)
+
+print(package.targets.map(\.name))
+print(package.dependencies.map(\.kind))
+#endif
