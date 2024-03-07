@@ -1,4 +1,4 @@
-import Combine
+import RxSwift
 import Foundation
 import GraphQL
 
@@ -18,8 +18,8 @@ public class WebSocketExchange: Exchange {
     private var handleAllOperations: Bool = false
     
     /// Subscriptions that are currently active identified by their operation IDs.
-    private var sources: [String: AnyCancellable]
-    
+    private var sources: [String: DisposeBag]
+
     // MARK: - Initializers
     
     public init(client: GraphQLWebSocket, handleAllOperations: Bool = false) {
@@ -53,8 +53,8 @@ public class WebSocketExchange: Exchange {
     }
     
     /// Creates a new stream of events related to the given operation.
-    private func createSubscriptionSource(operation: Operation) -> AnyPublisher<OperationResult, Never> {
-        let publisher: AnyPublisher<OperationResult, Never> = self.client
+    private func createSubscriptionSource(operation: Operation) -> Observable<OperationResult> {
+        let publisher: Observable<OperationResult> = self.client
             .subscribe(operation.args)
             .map { exec -> OperationResult in
                 var op = OperationResult(
@@ -69,31 +69,29 @@ public class WebSocketExchange: Exchange {
                 }
                 return op
             }
-            .eraseToAnyPublisher()
         
         return publisher
     }
     
     public func register(
         client: GraphQLClient,
-        operations: AnyPublisher<Operation, Never>,
+        operations: Observable<Operation>,
         next: ExchangeIO
-    ) -> AnyPublisher<OperationResult, Never> {
+    ) -> Observable<OperationResult> {
         let shared = operations.share()
         
         // Fowarded operations.
         let downstream = shared
             .filter { !self.shouldHandle(operation: $0) }
-            .eraseToAnyPublisher()
+
         let upstream = next(downstream)
         
         // Handled operations.
         let socketstream = shared
             .filter { self.shouldHandle(operation: $0) }
-            .flatMap { operation -> AnyPublisher<OperationResult, Never> in
+            .flatMap { operation -> Observable<OperationResult> in
                 let torndown = shared
                     .filter { $0.kind == .teardown && $0.id == operation.id }
-                    .eraseToAnyPublisher()
                 
                 return self.createSubscriptionSource(operation: operation)
                     .handleEvents(receiveCompletion: { _ in
@@ -105,10 +103,9 @@ public class WebSocketExchange: Exchange {
                     // the client (i.e. application) emits the teardown event because someone
                     // cancelled the subscription.
                     .takeUntil(torndown)
-                    .eraseToAnyPublisher()
             }
             
-        return upstream.merge(with: socketstream).eraseToAnyPublisher()
+        return upstream.merge(with: socketstream)
     }
 }
 #endif

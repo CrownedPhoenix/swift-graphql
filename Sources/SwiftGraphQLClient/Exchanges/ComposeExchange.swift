@@ -1,4 +1,4 @@
-import Combine
+import RxSwift
 import Foundation
 
 /// Exchange that composes multiple exchanges into one exchange.
@@ -15,11 +15,11 @@ public struct ComposeExchange: Exchange {
     
     public func register(
         client: GraphQLClient,
-        operations: AnyPublisher<Operation, Never>,
+        operations: Observable<Operation>,
         next: @escaping ExchangeIO
-    ) -> AnyPublisher<OperationResult, Never> {
+    ) -> Observable<OperationResult> {
         let combined: ExchangeIO = exchanges.reversed().reduce(next) { inner, exchange in
-            return { (downstream: AnyPublisher<Operation, Never>) -> AnyPublisher<OperationResult, Never> in
+            return { (downstream: Observable<Operation>) -> Observable<OperationResult> in
                 return exchange.register(client: client, operations: downstream, next: inner)
             }
         }

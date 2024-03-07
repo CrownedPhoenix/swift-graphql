@@ -1,4 +1,4 @@
-import Combine
+import RxSwift
 import Foundation
 
 /// An exchange that lets you listen to errors happening in the execution pipeline.
@@ -15,15 +15,14 @@ public struct ErrorExchange: Exchange {
     
     public func register(
         client: GraphQLClient,
-        operations: AnyPublisher<Operation, Never>,
+        operations: Observable<Operation>,
         next: @escaping ExchangeIO
-    ) -> AnyPublisher<OperationResult, Never> {
+    ) -> Observable<OperationResult> {
         next(operations)
             .handleEvents(receiveOutput: { result in
                 if let error = result.error {
                     self.onError(error, result.operation)
                 }
             })
-            .eraseToAnyPublisher()
     }
 }

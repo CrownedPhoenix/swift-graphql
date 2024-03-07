@@ -1,4 +1,4 @@
-import Combine
+import RxSwift
 import Foundation
 import GraphQL
 
@@ -13,7 +13,7 @@ public protocol FetchSession {
     /// The publisher publishes data when the task completes, or terminates if the task fails with an error.
     /// - Parameter request: The URL request for which to create a data task.
     /// - Returns: A publisher that wraps a data task for the URL request.
-    func dataTaskPublisher(for: URLRequest, with: Data) -> AnyPublisher<(data: Data, response: URLResponse), URLError>
+    func dataTaskPublisher(for: URLRequest, with: Data) -> Observable<(data: Data, response: URLResponse)>
 }
 
 /// Exchange that performs query and mutation operations following the [GraphQL over HTTP](https://github.com/graphql/graphql-over-http/blob/main/spec/GraphQLOverHTTP.md) spec.
@@ -47,27 +47,25 @@ public class FetchExchange: Exchange {
     
     public func register(
         client: GraphQLClient,
-        operations: AnyPublisher<Operation, Never>,
+        operations: Observable<Operation>,
         next: ExchangeIO
-    ) -> AnyPublisher<OperationResult, Never> {
+    ) -> Observable<OperationResult> {
         let shared = operations.share()
         
         let downstream = shared
             .filter { operation in
                 operation.kind != .query && operation.kind != .mutation
             }
-            .eraseToAnyPublisher()
         
         let upstream = next(downstream)
         
         let fetchstream = shared
             .filter({ $0.kind == .query || $0.kind == .mutation })
-            .flatMap({ operation -> AnyPublisher<OperationResult, Never> in
+            .flatMap({ operation -> Observable<OperationResult> in
                 let body = try! self.encoder.encode(operation.args)
                 
                 let torndown = shared
                     .filter { $0.kind == .teardown && $0.id == operation.id }
-                    .eraseToAnyPublisher()
                 
                 let publisher = self.session
                     .dataTaskPublisher(for: operation.request, with: body)
@@ -106,22 +104,22 @@ public class FetchExchange: Exchange {
                             )
                         }
                     }
-                    .catch { (error: URLError) -> AnyPublisher<OperationResult, Never> in
+                    .catch { (error: Error) -> Observable<OperationResult> in
+                        let error: CombinedError = if let error = error as? URLError { .network(error) } else { .unknown(error) }
                         let result = OperationResult(
                             operation: operation,
                             data: nil,
-                            error: .network(error),
+                            error: error,
                             stale: false
                         )
                         
-                        return Just(result).eraseToAnyPublisher()
+                        return Observable.just(result)
                     }
-                    .eraseToAnyPublisher()
                 
                 return publisher
             })
         
-        return fetchstream.merge(with: upstream).eraseToAnyPublisher()
+        return fetchstream.merge(with: upstream)
     }
 
 }
@@ -130,14 +128,24 @@ extension URLSession: FetchSession {
     public func dataTaskPublisher(
         for request: URLRequest,
         with body: Data
-    ) -> AnyPublisher<(data: Data, response: URLResponse), URLError> {
+    ) -> Observable<(data: Data, response: URLResponse)> {
         var gqlrequest = request
         
         gqlrequest.httpMethod = "POST"
         gqlrequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         gqlrequest.httpBody = body
         
-        let publisher: DataTaskPublisher = self.dataTaskPublisher(for: gqlrequest)
-        return publisher.eraseToAnyPublisher()
+        return Observable<(data: Data, response: URLResponse)>.create({ observer in
+            self.dataTask(with: gqlrequest, completionHandler: { data, response, error in
+                if let error {
+                    observer.onError(error)
+                } else if let data, let response {
+                    observer.onNext((data, response))
+                } else {
+                    observer.onCompleted()
+                }
+            })
+            return Disposables.create()
+        })
     }
 }

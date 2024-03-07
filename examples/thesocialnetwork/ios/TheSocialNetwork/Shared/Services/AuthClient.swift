@@ -1,5 +1,5 @@
 import AuthenticationServices
-import Combine
+import RxSwift
 import Foundation
 import Valet
 
@@ -13,8 +13,8 @@ enum AuthClient {
     }
     
     /// A publisher that tells whether the user is authenticated or not.
-    static var state: AnyPublisher<AuthState, Never> {
-        AuthClient.cache.$state.eraseToAnyPublisher()
+    static var state: Observable<AuthState> {
+        AuthClient.cache.$state.
     }
     
     enum AuthState: Equatable {
@@ -48,9 +48,9 @@ enum AuthClient {
                 NetworkClient.shared.query(User.viewer, policy: .cacheAndNetwork)
                     .receive(on: DispatchQueue.main)
                     .map { res in res.data }
-                    .catch({ _ -> AnyPublisher<User?, Never> in
+                    .catch({ _ -> Observable<User?, Never> in
                         self.logout()
-                        return Just(User?.none).eraseToAnyPublisher()
+                        return Just(User?.none).
                     })
                     .removeDuplicates()
                     .assign(to: &self.$user)

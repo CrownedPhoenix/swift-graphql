@@ -1,6 +1,6 @@
 import Foundation
 
-import Combine
+import RxSwift
 import Foundation
 import GraphQL
 
@@ -21,9 +21,9 @@ public class DedupExchange: Exchange {
     
     public func register(
         client: GraphQLClient,
-        operations: AnyPublisher<Operation, Never>,
+        operations: Observable<Operation>,
         next: ExchangeIO
-    ) -> AnyPublisher<OperationResult, Never> {
+    ) -> Observable<OperationResult> {
         let downstream = operations
             .filter { operation in
                 if operation.kind == .teardown {
@@ -43,13 +43,11 @@ public class DedupExchange: Exchange {
                 
                 return !isInFlight
             }
-            .eraseToAnyPublisher()
         
         let upstream = next(downstream)
             .handleEvents(receiveOutput: { result in
                 self.inFlightKeys.remove(result.operation.id)
             })
-            .eraseToAnyPublisher()
         
         return upstream
     }

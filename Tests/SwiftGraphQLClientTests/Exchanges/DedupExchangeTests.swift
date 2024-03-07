@@ -1,11 +1,11 @@
-import Combine
+import RxSwift
 import GraphQL
 @testable import SwiftGraphQLClient
 import XCTest
 
 final class DedupExchangeTests: XCTestCase {
 
-    private var cancellables = Set<AnyCancellable>()
+    private var cancellables = Set<DisposeBag>()
 
     /// Mock operation that we use in the tests.
     private static let queryOperation = SwiftGraphQLClient.Operation(
@@ -30,11 +30,11 @@ final class DedupExchangeTests: XCTestCase {
     /// Function that executes desired operations in prepared environment
     /// and returns the trace.
     func environment(
-        _ fn: (PassthroughSubject<SwiftGraphQLClient.Operation, Never>, PassthroughSubject<SwiftGraphQLClient.OperationResult, Never>) -> Void
+        _ fn: (PublishSubject<SwiftGraphQLClient.Operation>, PublishSubject<SwiftGraphQLClient.OperationResult>) -> Void
     ) -> [String] {
-        let operations = PassthroughSubject<SwiftGraphQLClient.Operation, Never>()
-        let results = PassthroughSubject<SwiftGraphQLClient.OperationResult, Never>()
-        
+        let operations = PublishSubject<SwiftGraphQLClient.Operation>()
+        let results = PublishSubject<SwiftGraphQLClient.OperationResult>()
+
         let client = MockClient()
         
         var trace: [String] = []
@@ -43,7 +43,7 @@ final class DedupExchangeTests: XCTestCase {
         let exchange = DedupExchange()
         exchange.register(
             client: client,
-            operations: operations.eraseToAnyPublisher()
+            operations: operations
         ) { ops in
             let downstream = ops
                 .handleEvents(receiveOutput: { operation in
@@ -52,11 +52,9 @@ final class DedupExchangeTests: XCTestCase {
                 .compactMap({ op in
                     SwiftGraphQLClient.OperationResult?.none
                 })
-                .eraseToAnyPublisher()
             
             let upstream = downstream
-                .merge(with: results.eraseToAnyPublisher())
-                .eraseToAnyPublisher()
+                .merge(with: results)
             
             return upstream
         }

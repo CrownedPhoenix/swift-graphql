@@ -1,6 +1,7 @@
-import Combine
+import RxSwift
 import GraphQL
 @testable import GraphQLWebSocket
+@testable import SwiftGraphQLClient
 import XCTest
 
 
@@ -8,8 +9,8 @@ import XCTest
 @available(macOS 12, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 final class ClientTests: XCTestCase {
     
-    private var cancellables = Set<AnyCancellable>()
-    
+    private var cancellables = Set<DisposeBag>()
+
     /// Returns the execution arguments for the counter subscription.
     private func count(from: Int, to: Int) -> ExecutionArgs {
         let args = ExecutionArgs(

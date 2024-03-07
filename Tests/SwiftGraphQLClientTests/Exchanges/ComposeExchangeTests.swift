@@ -1,4 +1,4 @@
-import Combine
+import RxSwift
 import GraphQL
 @testable import SwiftGraphQLClient
 import XCTest
@@ -15,33 +15,30 @@ final class ComposeExchangeTests: XCTestCase {
         
         func register(
             client: GraphQLClient,
-            operations: AnyPublisher<SwiftGraphQLClient.Operation, Never>,
+            operations: Observable<SwiftGraphQLClient.Operation>,
             next: @escaping ExchangeIO
-        ) -> AnyPublisher<OperationResult, Never> {
+        ) -> Observable<OperationResult> {
             let downstream = operations
                 .handleEvents(receiveOutput: { _ in
                     self.trace("going down: \(name)")
                 })
-                .eraseToAnyPublisher()
             
             let upstream = next(downstream)
                 .handleEvents(receiveOutput: { _ in
                     self.trace("going up: \(name)")
                 })
-                .eraseToAnyPublisher()
             
             return upstream
         }
     }
     
-    private var cancellables = Set<AnyCancellable>()
-    
+    private var cancellables = Set<DisposeBag>()
+
     func testComposesExchangesCorrectly() throws {
         let expectation = expectation(description: "Received Logs")
         
-        let subject = PassthroughSubject<SwiftGraphQLClient.Operation, Never>()
-        let operations = subject.share().eraseToAnyPublisher()
-        
+        let subject = PublishSubject<SwiftGraphQLClient.Operation>()
+        let operations = subject.share()        
         let client = MockClient()
         
         var trace: [String] = []
@@ -62,7 +59,6 @@ final class ComposeExchangeTests: XCTestCase {
                             stale: false
                         )
                     }
-                    .eraseToAnyPublisher()
             }
             .sink { result in
                 expectation.fulfill()

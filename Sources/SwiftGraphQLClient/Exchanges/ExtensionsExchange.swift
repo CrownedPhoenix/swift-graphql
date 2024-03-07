@@ -1,4 +1,4 @@
-import Combine
+import RxSwift
 import Foundation
 import GraphQL
 
@@ -19,9 +19,9 @@ public struct ExtensionsExchange: Exchange {
     
     public func register(
         client: GraphQLClient,
-        operations: AnyPublisher<Operation, Never>,
+        operations: Observable<Operation>,
         next: @escaping ExchangeIO
-    ) -> AnyPublisher<OperationResult, Never> {
+    ) -> Observable<OperationResult> {
         let downstream = operations
             .map { operation -> Operation in
                 guard let extensions = self.getExtensions(operation) else {
@@ -32,7 +32,6 @@ public struct ExtensionsExchange: Exchange {
                 copy.args.extensions = extensions
                 return copy
             }
-            .eraseToAnyPublisher()
         
         return next(downstream)
     }

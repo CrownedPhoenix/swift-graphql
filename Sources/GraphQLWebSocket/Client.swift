@@ -1,7 +1,8 @@
 // This file is heavily inspired by https://github.com/enisdenjo/graphql-ws.
 
-import Combine
+import RxSwift
 import GraphQL
+import RxSwiftCombine
 import Foundation
 import Starscream
 
@@ -100,8 +101,8 @@ public class GraphQLWebSocket: WebSocketDelegate {
     }
     
     /// The central subject that publishes all events to the pipelines.
-    private let emitter = PassthroughSubject<Event, Never>()
-    
+    private let emitter = PublishSubject<Event>()
+
     /// A timer reference responsible for checking that the server has ACK the connection in timely manner.
     /// https://stackoverflow.com/a/26808801/2946444
     weak private var ackTimer: Timer?
@@ -124,8 +125,8 @@ public class GraphQLWebSocket: WebSocketDelegate {
     /// query identifier that the client used to identify the subscription.
     ///
     /// - NOTE: We also use pipelines to tell how many ongoing connections the client is managing.
-    private var pipelines = [String: AnyCancellable]()
-    
+    private var pipelines = [String: DisposeBag]()
+
     // MARK: - Initializer
     
     /// Creates a new GraphQL WebSocket client from the given connection.
@@ -285,7 +286,7 @@ public class GraphQLWebSocket: WebSocketDelegate {
         // The server shouldn't reconnect, we tell all listenerss to stop listening.
         guard shouldRetryToConnect(code: code) else {
             self.emitter.send(Event.closed)
-            
+
             self.pingTimer = nil
             self.lazyCloseTimer = nil
             self.ackTimer = nil
@@ -392,7 +393,7 @@ public class GraphQLWebSocket: WebSocketDelegate {
             
             self.emitter.send(Event.message(.acknowledge(msg)))
             self.emitter.send(Event.acknowledged(payload: msg.payload))
-            
+
             self.health = .acknowledged
             self.ackTimer?.invalidate()
             self.flushQueue()
@@ -486,8 +487,8 @@ public class GraphQLWebSocket: WebSocketDelegate {
     // MARK: - Methods
     
     /// Returns a stream of events that get triggered when the client's state changes.
-    public func onEvent() -> AnyPublisher<Event, Never> {
-        self.emitter.share().eraseToAnyPublisher()
+    public func onEvent() -> Observable<Event> {
+        self.emitter.share()
     }
     
     /// Correctly closes the connection with the server.
@@ -500,13 +501,13 @@ public class GraphQLWebSocket: WebSocketDelegate {
     ///
     /// - NOTE: The client sends the request to the server once a subscriber has
     ///         subscribed - not as soon as you call `subscribe` method.
-    public func subscribe(_ args: ExecutionArgs) -> AnyPublisher<ExecutionResult, Never> {
+    public func subscribe(_ args: ExecutionArgs) -> Observable<ExecutionResult> {
         let id = UUID().uuidString
         
         // We create a new publisher that is bound to the pipeline
         // that watches server events and forwards them to the subscriber.
         // There's one pipeline for every subscription.
-        let subject = PassthroughSubject<ExecutionResult, Never>()
+        let subject = PublishSubject<ExecutionResult>()
         
         self.pipelines[id] = self.emitter
             .share()
@@ -541,7 +542,7 @@ public class GraphQLWebSocket: WebSocketDelegate {
                     // NOTE: Payload may include execution errors alongside the
                     // data that don't result in stream termination.
                     subject.send(payload.payload)
-                    
+
                 case .error(let payload):
                     // NOTE: Validation errors returned as standalone
                     // messages terminate the stream (https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md#error)
@@ -555,17 +556,17 @@ public class GraphQLWebSocket: WebSocketDelegate {
                     )
                     subject.send(result)
                     subject.send(completion: .finished)
-                    
+
                 case .complete:
                     // NOTE: We only forward the completion event since the
                     // results pipeline handles the clearing of resources on its own.
                     subject.send(completion: .finished)
-                    
+
                 default:
                     ()
-                }
+                } 
             }
-        
+
         let results = subject
             .handleEvents(receiveSubscription: { subscription in
                 // User has started listening for events, we ask the server
@@ -586,7 +587,6 @@ public class GraphQLWebSocket: WebSocketDelegate {
                 self.disconnect()
                 self.config.logger.debug("Subscription \(id) cancelled!")
             })
-            .eraseToAnyPublisher()
         
         return results
     }

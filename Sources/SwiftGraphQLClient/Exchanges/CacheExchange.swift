@@ -1,4 +1,4 @@
-import Combine
+import RxSwift
 import Foundation
 
 /// Exchange that lets you naively cache GraphQL resutls of your queries.
@@ -43,13 +43,13 @@ public class CacheExchange: Exchange {
     
     public func register(
         client: GraphQLClient,
-        operations: AnyPublisher<Operation, Never>,
+        operations: Observable<Operation>,
         next: @escaping ExchangeIO
-    ) -> AnyPublisher<OperationResult, Never> {
+    ) -> Observable<OperationResult> {
         let shared = operations.share()
         
         // We synchronously send cached results upstream.
-        let cachedOps: AnyPublisher<OperationResult, Never> = shared
+        let cachedOps: Observable<OperationResult> = shared
             .compactMap { operation in
                 guard self.shouldUseCache(operation: operation) else {
                     return nil
@@ -61,7 +61,6 @@ public class CacheExchange: Exchange {
                 }
                 return cachedResult
             }
-            .eraseToAnyPublisher()
         
         // We filter requests that hit cache and listen for results
         // to keep track of received results.
@@ -82,9 +81,8 @@ public class CacheExchange: Exchange {
                 let wasHit = operation.policy == .cacheFirst && self.resultCache[operation.id] != nil
                 return operation.policy != .cacheFirst || !wasHit
             })
-            .eraseToAnyPublisher()
         
-        let forwardedOps: AnyPublisher<OperationResult, Never> = next(downstream)
+        let forwardedOps: Observable<OperationResult> = next(downstream)
         
         let upstream = forwardedOps
             .handleEvents(receiveOutput: { result in
@@ -128,9 +126,8 @@ public class CacheExchange: Exchange {
                     }
                 }
             })
-            .eraseToAnyPublisher()
         
         
-        return cachedOps.merge(with: upstream).eraseToAnyPublisher()
+        return cachedOps.merge(with: upstream)
     }
 }

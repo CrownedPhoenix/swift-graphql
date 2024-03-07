@@ -1,4 +1,4 @@
-import Combine
+import RxSwift
 import GraphQL
 import Foundation
 @testable import SwiftGraphQLClient
@@ -6,17 +6,17 @@ import XCTest
 
 final class CacheExchangeTests: XCTestCase {
     
-    private var cancellables = Set<AnyCancellable>()
-    
+    private var cancellables = Set<DisposeBag>()
+
     /// Function that executes desired operations in prepared environment and returns the trace.
     func environment(
-        _ fn: (PassthroughSubject<SwiftGraphQLClient.Operation, Never>, PassthroughSubject<SwiftGraphQLClient.OperationResult, Never>) -> Void
+        _ fn: (PublishSubject<SwiftGraphQLClient.Operation>, PublishSubject<SwiftGraphQLClient.OperationResult>) -> Void
     ) -> [String] {
         var trace: [String] = []
         
-        let operations = PassthroughSubject<SwiftGraphQLClient.Operation, Never>()
-        let results = PassthroughSubject<SwiftGraphQLClient.OperationResult, Never>()
-        
+        let operations = PublishSubject<SwiftGraphQLClient.Operation>()
+        let results = PublishSubject<SwiftGraphQLClient.OperationResult>()
+
         let client = MockClient(customReexecute:  { operation in
             trace.append("reexecuted: \(operation.id) (\(operation.kind.rawValue), \(operation.policy.rawValue))")
         })
@@ -29,7 +29,6 @@ final class CacheExchangeTests: XCTestCase {
                 .handleEvents(receiveOutput: { operation in
                     trace.append("requested: \(operation.id) (\(operation.kind.rawValue), \(operation.policy.rawValue))")
                 })
-                .eraseToAnyPublisher()
         ) { ops in
             let downstream = ops
                 .handleEvents(receiveOutput: { operation in
@@ -38,12 +37,10 @@ final class CacheExchangeTests: XCTestCase {
                 .compactMap({ op in
                     SwiftGraphQLClient.OperationResult?.none
                 })
-                .eraseToAnyPublisher()
             
             let upstream = downstream
-                .merge(with: results.eraseToAnyPublisher())
-                .eraseToAnyPublisher()
-            
+                .merge(with: results)
+
             return upstream
         }
         .sink { result in
@@ -54,7 +51,7 @@ final class CacheExchangeTests: XCTestCase {
             trace.append("resulted (\(stale)): \(op.id) \(value) (\(op.kind.rawValue))")
         }
         .store(in: &self.cancellables)
-        
+
         fn(operations, results)
         
         return trace
@@ -170,7 +167,7 @@ final class CacheExchangeTests: XCTestCase {
             let op = CacheExchangeTests.queryOperation.with(policy: .cacheOnly)
             
             operations.send(op)
-            
+
             // randomly, unexplicably receive the result
             results.send(SwiftGraphQLClient.OperationResult(
                 operation: op,
@@ -196,7 +193,7 @@ final class CacheExchangeTests: XCTestCase {
             let op = CacheExchangeTests.queryOperation.with(policy: .networkOnly)
             
             operations.send(op)
-            
+
             // randomly, unexplicably receive the result
             results.send(SwiftGraphQLClient.OperationResult(
                 operation: op,
@@ -239,7 +236,7 @@ final class CacheExchangeTests: XCTestCase {
             let op = CacheExchangeTests.queryOperation.with(policy: .cacheAndNetwork)
             
             operations.send(op)
-            
+
             results.send(SwiftGraphQLClient.OperationResult(
                 operation: op,
                 data: AnyCodable("hello"),
