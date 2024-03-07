@@ -17,7 +17,6 @@ let package = Package(
         // Utilities
         .library(name: "GraphQL", targets: ["GraphQL"]),
         .library(name: "GraphQLWebSocket", targets: ["GraphQLWebSocket"]),
-        .library(name: "SwiftGraphQLUtils", targets: ["SwiftGraphQLUtils"]),
 
         // Plugin
         .plugin(name: "SwiftGraphQLPlugin", targets: ["SwiftGraphQLPlugin"])
@@ -48,7 +47,6 @@ let package = Package(
             name: "SwiftGraphQL",
             dependencies: [
                 "GraphQL",
-                "SwiftGraphQLUtils",
             ],
             path: "Sources/SwiftGraphQL"
         ),
@@ -62,7 +60,6 @@ let package = Package(
             ],
             path: "Sources/SwiftGraphQLClient"
         ),
-        .target(name: "SwiftGraphQLUtils"),
 
         // Tests
 
@@ -71,7 +68,6 @@ let package = Package(
             dependencies: [
                 "Files",
                 "GraphQL",
-                "SwiftGraphQLUtils",
                 "GraphQLWebSocket",
                 "SwiftGraphQL",
                 "SwiftGraphQLClient",
