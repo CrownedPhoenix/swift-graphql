@@ -24,8 +24,8 @@ let package = Package(
     dependencies: [
         // .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
-        .package(url: "https://github.com/daltoniam/Starscream.git", from: "4.0.5"),
         .package(url: "https://github.com/JohnSundell/Files", from: "4.0.0"),
+        .package(url: "https://github.com/vapor/websocket-kit.git", from: "2.0.0"),
     ],
     targets: [
         // Spec
@@ -35,7 +35,7 @@ let package = Package(
             dependencies: [
                 "GraphQL",
                 .product(name: "Logging", package: "swift-log"),
-                "Starscream",
+                .product(name: "WebSocketKit", package: "websocket-kit"),
             ],
             path: "Sources/GraphQLWebSocket",
             exclude: ["README.md"]
