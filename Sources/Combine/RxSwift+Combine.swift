@@ -1,4 +1,5 @@
 @_exported import RxSwift
+import struct Foundation.URLError
 
 
 public extension Disposable {
@@ -56,6 +57,26 @@ public extension Observable {
     }
 
     func eraseToAnyPublisher() -> Observable<Element> { self }
+
+    func switchToLatest() -> Observable<Element.Element> where Element: ObservableConvertibleType { switchLatest() }
+
+    func `catch`(_ handler: @escaping (URLError) -> Element) -> Observable<Element> {
+        self.catch({ (error: Error) -> Observable<Element> in
+            if let error = error as? URLError {
+                Observable.just(handler(error))
+            } else {
+                throw error
+            }
+        })
+    }
+
+    func flatMap<Source: ObservableConvertibleType>(_ transform: (Element) -> Source) -> Observable<Source.Element> {
+        self.flatMap(transform)
+    }
+}
+
+public extension PrimitiveSequence {
+    func eraseToAnyPublisher() -> Observable<Element> { self.asObservable() }
 }
 
 public extension PublishSubject {
@@ -78,7 +99,7 @@ public extension PublishSubject {
 
 public extension Observable {
     func first() async throws -> Element {
-        try await take(1).asSingle().value
+        try await take(1).asSingle().values.first(where: { _ in true })!
     }
 }
 
@@ -94,3 +115,9 @@ extension DisposeBag: Equatable {
 }
 
 public typealias AnyPublisher<Element, Error> = Observable<Element>
+public typealias PassthroughSubject<Element, Error> = PublishSubject<Element>
+public typealias AnyCancellable = DisposeBag
+public func Just<Element>(_ element: Element) -> Observable<Element> { Observable.just(element) }
+public func Empty<Element, Never>(_ never: Never.Type = Never.self) -> Observable<Element> { Observable.empty() }
+public protocol ObservableObject {}
+

@@ -1,5 +1,9 @@
 import Combine
 import Foundation
+#if os(Linux) && canImport(FoundationNetworking)
+import struct FoundationNetworking.URLRequest
+public typealias URLRequest = FoundationNetworking.URLRequest
+#endif
 import GraphQL
 
 /// Operation describes a single request that may be processed by multiple exchange along the chain.

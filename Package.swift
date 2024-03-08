@@ -26,6 +26,8 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
         .package(url: "https://github.com/JohnSundell/Files", from: "4.0.0"),
         .package(url: "https://github.com/vapor/websocket-kit.git", from: "2.0.0"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.0.0"),
+        .package(url: "https://github.com/apple/swift-nio-transport-services.git", from: "1.0.0"),
     ],
     targets: [
         // Spec
@@ -36,6 +38,10 @@ let package = Package(
                 "GraphQL",
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "WebSocketKit", package: "websocket-kit"),
+                .product(name: "NIOTransportServices", package: "swift-nio-transport-services"),
+                .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
+                .product(name: "NIOWebSocket", package: "swift-nio"),
+                .product(name: "NIOCore", package: "swift-nio"),
             ],
             path: "Sources/GraphQLWebSocket",
             exclude: ["README.md"]
@@ -90,7 +96,7 @@ let package = Package(
 )
 
 
-#if os(Linux)
+//#if os(Linux)
 package.targets.append(
     .target(name: "Combine", dependencies: [
         .product(name: "RxSwift", package: "RxSwift"),
@@ -99,7 +105,4 @@ package.targets.append(
 package.dependencies.append(
     .package(url: "https://github.com/ReactiveX/RxSwift.git", from: "6.0.0")
 )
-
-print(package.targets.map(\.name))
-print(package.dependencies.map(\.kind))
-#endif
+//#endif

@@ -107,7 +107,7 @@ public class WebSocketExchange: Exchange {
                     .takeUntil(torndown)
                     .eraseToAnyPublisher()
             }
-            
+
         return upstream.merge(with: socketstream).eraseToAnyPublisher()
     }
 }

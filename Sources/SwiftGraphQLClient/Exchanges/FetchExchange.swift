@@ -1,5 +1,10 @@
 import Combine
 import Foundation
+#if os(Linux) && canImport(FoundationNetworking)
+import struct FoundationNetworking.URLRequest
+import class FoundationNetworking.URLResponse
+import class FoundationNetworking.URLSession
+#endif
 import GraphQL
 
 /// Protocol that outlines methods that are required by FetchExchange to operate as expected.
@@ -120,7 +125,7 @@ public class FetchExchange: Exchange {
                 
                 return publisher
             })
-        
+
         return fetchstream.merge(with: upstream).eraseToAnyPublisher()
     }
 

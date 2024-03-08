@@ -3,6 +3,10 @@
 import Combine
 import GraphQL
 import Foundation
+#if os(Linux) && canImport(FoundationNetworking)
+import struct FoundationNetworking.URLRequest
+public typealias URLRequest = FoundationNetworking.URLRequest
+#endif
 
 /// A GraphQL client that lets you send queries over WebSocket protocol.
 ///

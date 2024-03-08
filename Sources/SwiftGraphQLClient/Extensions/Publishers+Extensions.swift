@@ -1,3 +1,4 @@
+#if !os(Linux)
 import Combine
 import Foundation
 
@@ -175,3 +176,4 @@ extension Subscriptions {
         }
     }
 }
+#endif

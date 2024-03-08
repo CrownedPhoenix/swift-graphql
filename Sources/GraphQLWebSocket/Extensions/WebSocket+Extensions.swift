@@ -4,6 +4,7 @@ import NIOTransportServices
 import NIOConcurrencyHelpers
 import NIOWebSocket
 import NIOCore
+import NIO
 
 
 public protocol WebSocketDelegate: AnyObject {
@@ -42,7 +43,7 @@ class WebSocket: WebSocketClient {
     private let request: URLRequest
 
     init(request: URLRequest) {
-        group = NIOTSEventLoopGroup()
+        group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         self.request = request
     }
 
